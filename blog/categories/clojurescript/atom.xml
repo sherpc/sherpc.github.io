@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: Clojurescript | sherpc's blog]]></title>
+  <link href="http://sherpc.github.io/blog/categories/clojurescript/atom.xml" rel="self"/>
+  <link href="http://sherpc.github.io/"/>
+  <updated>2014-06-03T02:02:24+04:00</updated>
+  <id>http://sherpc.github.io/</id>
+  <author>
+    <name><![CDATA[Aleksandr Sher]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Quiescent &amp; Core.Async &amp; WebSockets]]></title>
+    <link href="http://sherpc.github.io/blog/2014/06/02/quiescent-and-core-dot-async/"/>
+    <updated>2014-06-02T23:03:41+04:00</updated>
+    <id>http://sherpc.github.io/blog/2014/06/02/quiescent-and-core-dot-async</id>
+    <content type="html"><![CDATA[<h2>Цель</h2>
+
+<p>Создать клиентское приложение с помощью clojure script, core.async &amp; web sockets, которое будет слушать данные с сервера и показывать их в виде графика в реальном времени.</p>
+
+<h2>Часть 0 &mdash; Подготовка</h2>
+
+<p>Quiescent предназначен для рендеринга dom-дерева через React.js. Общая идея: получаем на вход некое состояние (обычно clojurescript map), и выдаем его в виде dom-дерева. В отличие от Om, quiescent не предназначен для обработки dom-событий.</p>
+
+<p>Для примеров я буду использовать LightTable. Скачать можно здесь: <a href="http://www.lighttable.com/">http://www.lighttable.com/</a></p>
+
+<p>Также, нам нужен установленый leiningen. Берем отсюда: <a href="https://github.com/technomancy/leiningen#installation">https://github.com/technomancy/leiningen#installation</a></p>
+
+<h3>Настройка проекта с ClojureScript</h3>
+
+<p>Создаем проект для работы с ClojureScript, пользуясь подсказками из этой статьи: <a href="http://yobriefca.se/blog/2014/05/30/basic-clojurescript-setup/">http://yobriefca.se/blog/2014/05/30/basic-clojurescript-setup/</a> (я назвал проект random-charts):</p>
+
+<p><code>bash
+sherpc@javari:~/Projects$ lein new mies random-charts
+sherpc@javari:~/Projects$ cd random-charts
+sherpc@javari:~/Projects/random-charts$ cat &gt; Procfile
+web: lein simpleton 8080
+cljs: lein cljsbuild auto
+sherpc@javari:~/Projects/random-charts$
+</code>
+Правим project.clj:</p>
+
+<p>``` clojure project.clj
+(defproject random-charts &ldquo;0.1.0-SNAPSHOT&rdquo;
+  :description &ldquo;FIXME: write this!&rdquo;
+  :url &ldquo;<a href="http://example.com/FIXME">http://example.com/FIXME</a>&rdquo;</p>
+
+<p>  :dependencies [[org.clojure/clojure &ldquo;1.5.1&rdquo;]</p>
+
+<pre><code>             [org.clojure/clojurescript "0.0-2173"]]
+</code></pre>
+
+<p>  :plugins [[lein-cljsbuild &ldquo;1.0.2&rdquo;]</p>
+
+<pre><code>        [lein-simpleton "1.3.0"]
+        [lein-cooper "0.0.1"]]
+</code></pre>
+
+<p>  :source-paths [&ldquo;src&rdquo;]</p>
+
+<p>  :cljsbuild {</p>
+
+<pre><code>:builds [{:id "random-charts"
+          :source-paths ["src"]
+          :compiler {
+            :output-to "random_charts.js"
+            :output-dir "out"
+            :optimizations :none
+            :source-map true}}]})
+</code></pre>
+
+<p>```</p>
+
+<p>Запускаем cooper и проверяем консоль по адресу <a href="http://localhost:8080">http://localhost:8080</a></p>
+
+<p><code>bash
+sherpc@javari:~/Projects/random-charts$ lein cooper
+</code>
+<img class="<a" src="href="http://snapr.pw/i/cdec198d80.png">http://snapr.pw/i/cdec198d80.png</a>"></p>
+
+<p>Ура, у нас настроено рабочее окружение для clojure script.</p>
+
+<h3>Подключаем REPL</h3>
+
+<p>Теперь подключим LightTable к нашей вкладке в браузере. Для этого открываем Connect bar (crl+space show connect&hellip;), выбираем Add &ndash;> Browser (External) и копируем script-тег, который покажет LightTable. Вставляем этот тег в index.html:
+<div class='bogus-wrapper'><notextile><figure class='code'><figcaption><span>index.html  (index.html)</span> <a href='/downloads/code/index.html'>download</a></figcaption>
+<div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class='html'><span class='line'><span class="nt">&lt;html&gt;</span>
+</span><span class='line'>    <span class="nt">&lt;body&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">type=</span><span class="s">&#39;text/javascript&#39;</span> <span class="na">id=</span><span class="s">&#39;lt_ws&#39;</span> <span class="na">src=</span><span class="s">&#39;http://localhost:55655/socket.io/lighttable/ws.js&#39;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">src=</span><span class="s">&quot;out/goog/base.js&quot;</span> <span class="na">type=</span><span class="s">&quot;text/javascript&quot;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">src=</span><span class="s">&quot;random_charts.js&quot;</span> <span class="na">type=</span><span class="s">&quot;text/javascript&quot;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">type=</span><span class="s">&quot;text/javascript&quot;</span><span class="nt">&gt;</span><span class="nx">goog</span><span class="p">.</span><span class="nx">require</span><span class="p">(</span><span class="s2">&quot;random_charts.core&quot;</span><span class="p">);</span><span class="nt">&lt;/script&gt;</span>
+</span><span class='line'>    <span class="nt">&lt;/body&gt;</span>
+</span><span class='line'><span class="nt">&lt;/html&gt;</span>
+</span></code></pre></td></tr></table></div></figure></notextile></div>
+Обновляем страницу в браузере (F5), и в LightTable внизу в строке статуса видим Connected to localhost:8080. Чтобы проверить, наберем в файле core.cljs следующую строчку, выделим её и нажмем ctrl+enter (eval selected):
+<code>clojure
+(js/alert "Hello!")
+</code>
+LightTable первый раз долго подключается к проекту, и в итоге в браузере мы должны увидеть заветный alert с текстом hello!. Попробуем println:
+<code>clojure
+(println (map inc [1 2 3]))
+</code>
+В консоли видим (2 3 4) &mdash; ура, все работает! Переходим к самому интересному.</p>
+
+<h3>Немного стилей</h3>
+
+<p>Подключаем bootstrap (<a href="http://getbootstrap.com/">http://getbootstrap.com/</a>) в index.html:
+<div class='bogus-wrapper'><notextile><figure class='code'><figcaption><span>index.html  (index-bootstrap.html)</span> <a href='/downloads/code/index-bootstrap.html'>download</a></figcaption>
+<div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+<span class='line-number'>37</span>
+</pre></td><td class='code'><pre><code class='html'><span class='line'><span class="nt">&lt;html&gt;</span>
+</span><span class='line'>    <span class="nt">&lt;head&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;title&gt;</span>Random charts<span class="nt">&lt;/title&gt;</span>
+</span><span class='line'>
+</span><span class='line'>        <span class="nt">&lt;link</span> <span class="na">rel=</span><span class="s">&quot;stylesheet&quot;</span> <span class="na">href=</span><span class="s">&quot;//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css&quot;</span><span class="nt">&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;link</span> <span class="na">href=</span><span class="s">&quot;css/style.css&quot;</span> <span class="na">rel=</span><span class="s">&quot;stylesheet&quot;</span><span class="nt">&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">src=</span><span class="s">&quot;https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js&quot;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">src=</span><span class="s">&quot;http://fb.me/react-0.10.0.js&quot;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">src=</span><span class="s">&quot;//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js&quot;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>    <span class="nt">&lt;/head&gt;</span>
+</span><span class='line'>    <span class="nt">&lt;body&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">&quot;navbar navbar-inverse navbar-fixed-top&quot;</span> <span class="na">role=</span><span class="s">&quot;navigation&quot;</span><span class="nt">&gt;</span>
+</span><span class='line'>          <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">&quot;container&quot;</span><span class="nt">&gt;</span>
+</span><span class='line'>            <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">&quot;navbar-header&quot;</span><span class="nt">&gt;</span>
+</span><span class='line'>              <span class="nt">&lt;button</span> <span class="na">type=</span><span class="s">&quot;button&quot;</span> <span class="na">class=</span><span class="s">&quot;navbar-toggle&quot;</span> <span class="na">data-toggle=</span><span class="s">&quot;collapse&quot;</span> <span class="na">data-target=</span><span class="s">&quot;.navbar-collapse&quot;</span><span class="nt">&gt;</span>
+</span><span class='line'>                <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">&quot;sr-only&quot;</span><span class="nt">&gt;</span>Toggle navigation<span class="nt">&lt;/span&gt;</span>
+</span><span class='line'>                <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">&quot;icon-bar&quot;</span><span class="nt">&gt;&lt;/span&gt;</span>
+</span><span class='line'>                <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">&quot;icon-bar&quot;</span><span class="nt">&gt;&lt;/span&gt;</span>
+</span><span class='line'>                <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">&quot;icon-bar&quot;</span><span class="nt">&gt;&lt;/span&gt;</span>
+</span><span class='line'>              <span class="nt">&lt;/button&gt;</span>
+</span><span class='line'>              <span class="nt">&lt;a</span> <span class="na">class=</span><span class="s">&quot;navbar-brand&quot;</span> <span class="na">href=</span><span class="s">&quot;#&quot;</span><span class="nt">&gt;</span>Random charts<span class="nt">&lt;/a&gt;</span>
+</span><span class='line'>            <span class="nt">&lt;/div&gt;</span>
+</span><span class='line'>          <span class="nt">&lt;/div&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;/div&gt;</span>
+</span><span class='line'>
+</span><span class='line'>        <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">&quot;container&quot;</span><span class="nt">&gt;</span>
+</span><span class='line'>            <span class="nt">&lt;div</span> <span class="na">id=</span><span class="s">&quot;alert&quot;</span><span class="nt">&gt;&lt;/div&gt;</span>
+</span><span class='line'>
+</span><span class='line'>        <span class="nt">&lt;/div&gt;</span><span class="c">&lt;!-- /.container --&gt;</span>
+</span><span class='line'>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">type=</span><span class="s">&#39;text/javascript&#39;</span> <span class="na">id=</span><span class="s">&#39;lt_ws&#39;</span> <span class="na">src=</span><span class="s">&#39;http://localhost:55655/socket.io/lighttable/ws.js&#39;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">src=</span><span class="s">&quot;out/goog/base.js&quot;</span> <span class="na">type=</span><span class="s">&quot;text/javascript&quot;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">src=</span><span class="s">&quot;random_charts.js&quot;</span> <span class="na">type=</span><span class="s">&quot;text/javascript&quot;</span><span class="nt">&gt;&lt;/script&gt;</span>
+</span><span class='line'>        <span class="nt">&lt;script </span><span class="na">type=</span><span class="s">&quot;text/javascript&quot;</span><span class="nt">&gt;</span><span class="nx">goog</span><span class="p">.</span><span class="nx">require</span><span class="p">(</span><span class="s2">&quot;random_charts.core&quot;</span><span class="p">);</span><span class="nt">&lt;/script&gt;</span>
+</span><span class='line'>    <span class="nt">&lt;/body&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="nt">&lt;/html&gt;</span>
+</span></code></pre></td></tr></table></div></figure></notextile></div>
+И добавляем файл css/style.css:
+<code>css
+body {
+  padding-top: 60px;
+}
+</code></p>
+
+<h2>Часть I &mdash; Quiescent</h2>
+
+<p>Не забываем подключить сам React.js в index.html.</p>
+
+<h3>Простой компонент</h3>
+
+<p>Для начала сделаем компонент, который просто реализует alert из bootstrap (<a href="http://getbootstrap.com/components/#alerts">http://getbootstrap.com/components/#alerts</a>).
+Добавим в index.html в div.container div с class=&ldquo;p-alert&rdquo; (p &mdash; placeholder). В него будет рендерится наш компонент.</p>
+
+<p>Добавляем все необходимые зависимости в project.clj:
+``` clojure
+  :dependencies [[org.clojure/clojure &ldquo;1.5.1&rdquo;]</p>
+
+<pre><code>             [org.clojure/clojurescript "0.0-2173"]
+             [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
+             [quiescent "0.1.1"]]
+</code></pre>
+
+<p><code>
+Определим первый компонент в core.cljs:
+</code> clojure
+(ns random-charts.core
+  (:require [quiescent :as q :include-macros true]</p>
+
+<pre><code>        [quiescent.dom :as d]))
+</code></pre>
+
+<p>(q/defcomponent Alert
+  [data]
+  (if data</p>
+
+<pre><code>(let [{:keys [text type]} data]
+  (d/div {:className (str "alert alert-dismissable alert-" type)}
+    (d/button {:type "button" :className "close"} "×")
+    text))
+(d/div {} "")))
+</code></pre>
+
+<p>```
+Чтобы REPL продолжил работать, приходится снова открыть Connect bar, отключится от random-charts-project.clj, и заново вычислить (ns random-charts.core (:require&hellip;)). Перезагружаем страницу, и вычисление q/defcomponent Alert должно пройти успешно.</p>
+
+<p>Namespace quiescent.dom позволяет нам рендерить dom-элементы через функции d/some-dom-tag. Каждая такая функция принимает на вход map с аргументами и body вторым параметром. Body может быть вызовом еще одного d/some-dom-tag, другого компонента, функции, которая вернет строку, или просто строкой. Например, запись вида (d/span {:className &ldquo;m-open&rdquo;} &ldquo;Hello!&rdquo;) вставит в dom:
+<code>html
+&lt;span class="m-open"&gt;Hello!&lt;/span&gt;
+</code></p>
+
+<p>Наш компонент принимает данные в виде {:text &ldquo;New alert!&rdquo; :type &ldquo;danger&rdquo;}. Если данных нет, то рендерим пустой div; иначе рендерим div с button и текстом внутри. Вставим наш alert в dom:
+``` clojure
+(q/render (Alert {:text &ldquo;New alert!&rdquo; :type &ldquo;danger&rdquo;})</p>
+
+<pre><code>      (.getElementById js/document "alert"))
+</code></pre>
+
+<p>```
+q/render принимает в качестве первого аргумента вызов корневого компонента, а в качестве второго &mdash; dom-элемент, в который будет вставлен компонент. Если в браузере появился alert, значит все работает!
+<img class="<a" src="href="http://snapr.pw/i/69d727af29.png">http://snapr.pw/i/69d727af29.png</a>">
+Можно поменять текст или тип предупреждения, заново вычислить q/render, и убедиться, что в браузере все поменялось.
+На этом сам quiescent практически весь изучен, но осталось самое интересное &mdash; обновление компонентов. Сам quiescent не занимается state managment'ом, поэтому мы реализуем его сами с помощью core.async.</p>
+
+<h2>Простое обновление компонента</h2>
+
+<p>Давайте выведем в наше предупреждение текущее время, и будем его обновлять раз в секунду.
+Для начала, проверим, что мы можем получить текущее время и вывести его:
+``` clojure
+(q/render (Alert {:text (js/Date) :type &ldquo;success&rdquo;})</p>
+
+<pre><code>      (.getElementById js/document "alert"))
+</code></pre>
+
+<p>```
+Нам надо как-то 1) Обновлять наше состояние раз в секунду и 2) Уведомлять об этом quiescent, чтобы он перерисовал компонент.
+Для этого мы создадим канал, в который будем посылать обновления нашего состояния. Затем подпишемся на канал, и в подписчике будем вызывать перерисовку компонента.</p>
+
+<p>``` clojure
+;; Создаем atom для состояния и канал для обновления:
+(def app-state (atom {}))
+(def update-channel (a/chan))</p>
+
+<p>;; Функция subscribe бесконечно считывает значения из канала, делает swap! с состоянием и вызывает q/render:
+(defn subscribe
+  [update-fn state ch]
+  (am/go (while true</p>
+
+<pre><code>       (let [val (a/&lt;! ch)
+             _ (.log js/console (str "recieved value [" val "]"))
+             new-state (swap! state update-fn val)]
+         (q/render 
+          (Alert new-state)
+          (.getElementById js/document "alert"))))))
+</code></pre>
+
+<p>;; Подпишемся на наш канал, в функции обновления просто запишем новое значение в :text
+;; В нашем случае подошел бы reset!, либо (assoc state :text v), но swap! более универсален, и для примера оставим так.
+(subscribe (fn [s v] {:text v :type &ldquo;success&rdquo;}) app-state update-channel)</p>
+
+<p>;; Функция будет бесконечно раз в секунду посылать текущую дату в канал:
+(defn publish-every-second
+  [channel]
+  (am/go
+   (loop []</p>
+
+<pre><code> (a/&lt;! (a/timeout 1000))
+ (a/&gt;! channel (js/Date))
+ (recur))))
+</code></pre>
+
+<p>;; Вызываем:
+(publish-every-second update-channel)
+```
+В браузере мы должны увидеть рабочие часы.</p>
+]]></content>
+  </entry>
+  
+</feed>
