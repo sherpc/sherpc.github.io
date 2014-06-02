@@ -110,7 +110,9 @@ body {
 ``` clojure
 (ns random-charts.core
   (:require [quiescent :as q :include-macros true]
-            [quiescent.dom :as d]))
+            [quiescent.dom :as d]
+	    [cljs.core.async :as a])
+  (:require-macros [cljs.core.async.macros :as am]))
 
 (q/defcomponent Alert
   [data]
