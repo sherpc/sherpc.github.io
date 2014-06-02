@@ -352,9 +352,13 @@
 <span class='line-number'>10</span>
 <span class='line-number'>11</span>
 <span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
 </pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">ns </span><span class="nv">random-charts.core</span>
 </span><span class='line'>  <span class="p">(</span><span class="ss">:require</span> <span class="p">[</span><span class="nv">quiescent</span> <span class="ss">:as</span> <span class="nv">q</span> <span class="ss">:include-macros</span> <span class="nv">true</span><span class="p">]</span>
-</span><span class='line'>            <span class="p">[</span><span class="nv">quiescent.dom</span> <span class="ss">:as</span> <span class="nv">d</span><span class="p">]))</span>
+</span><span class='line'>            <span class="p">[</span><span class="nv">quiescent.dom</span> <span class="ss">:as</span> <span class="nv">d</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">[</span><span class="nv">cljs.core.async</span> <span class="ss">:as</span> <span class="nv">a</span><span class="p">])</span>
+</span><span class='line'>  <span class="p">(</span><span class="ss">:require-macros</span> <span class="p">[</span><span class="nv">cljs.core.async.macros</span> <span class="ss">:as</span> <span class="nv">am</span><span class="p">]))</span>
 </span><span class='line'>
 </span><span class='line'><span class="p">(</span><span class="nf">q/defcomponent</span> <span class="nv">Alert</span>
 </span><span class='line'>  <span class="p">[</span><span class="nv">data</span><span class="p">]</span>

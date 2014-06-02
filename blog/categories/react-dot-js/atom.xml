@@ -4,7 +4,7 @@
   <title><![CDATA[Category: react.js | sherpc's blog]]></title>
   <link href="http://sherpc.github.io/blog/categories/react-dot-js/atom.xml" rel="self"/>
   <link href="http://sherpc.github.io/"/>
-  <updated>2014-06-03T02:02:24+04:00</updated>
+  <updated>2014-06-03T02:04:16+04:00</updated>
   <id>http://sherpc.github.io/</id>
   <author>
     <name><![CDATA[Aleksandr Sher]]></name>
@@ -225,8 +225,11 @@ body {
 (ns random-charts.core
   (:require [quiescent :as q :include-macros true]</p>
 
-<pre><code>        [quiescent.dom :as d]))
+<pre><code>        [quiescent.dom :as d]
+    [cljs.core.async :as a])
 </code></pre>
+
+<p>  (:require-macros [cljs.core.async.macros :as am]))</p>
 
 <p>(q/defcomponent Alert
   [data]
